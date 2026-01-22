@@ -28,7 +28,7 @@ dataset = tf.data.Dataset.from_tensor_slices(data_dict)
 U_season = np.unique(data_dict['season'])
 U_usage = np.unique(data_dict['usage'])
 U_gender = np.unique(data_dict['gender'])
-U_type = np.unique(data_dict['articleType'])
+U_type = np.append(np.unique(data_dict['articleType']), "Unknown")
 U_id = np.unique(data_dict['id'])
 
 Dimension = 32
@@ -68,11 +68,12 @@ class query(tf.keras.Model):
 
     def call(self, inputs):
         x = tf.concat([
-            self.gender_embed(inputs['gender']) * 2.0,
-            self.usage_embed(inputs['usage']),
+            self.gender_embed(inputs['gender']) * 1.0,
+            self.usage_embed(inputs['usage']) * 2.5,
             self.type_embed(inputs['articleType']),
-            self.season_embed(inputs['season'])
+            self.season_embed(inputs['season']) * 1.5
         ], axis=1)
+
         return self.deep_query(x)
 
 class candidate(tf.keras.Model):
@@ -207,13 +208,15 @@ class RecommendationEngine:
         # Build query
         user_query = {
             "gender": tf.constant([user_inputs['gender']]),
-            "articleType": tf.constant([user_inputs['articleType']]),
+            "articleType": tf.constant(["Unknown"]),
             "season": tf.constant([user_inputs['season']]),
             "usage": tf.constant([user_inputs['usage']])
         }
 
         # Retrieve top-K
-        scores, top_indices = self.index(user_query, k=k)
+        RETRIEVE_K = max(k * 10, 50)
+        scores, top_indices = self.index(user_query, k=RETRIEVE_K)
+
         top_ids = tf.gather(self.all_identifiers, top_indices)
 
         # Build response with metadata
@@ -226,9 +229,37 @@ class RecommendationEngine:
         secondary = []
         fallback = []
 
+        score_min = float(tf.reduce_min(scores))
+        score_max = float(tf.reduce_max(scores))
+
         for rank, raw_id in enumerate(top_ids[0].numpy()):
             item_id = raw_id.decode("utf-8")
             meta = self.df.loc[item_id]
+            
+            if expected_usage == "Formal":
+                if meta["articleType"] in [
+                    "Bra", "Briefs", "Innerwear", "Lingerie",
+                    "Socks", "Caps", "Flip Flops"
+                ]:
+                    continue
+
+            if expected_usage == "Casual":
+                if meta["articleType"] in [
+                    "Bra", "Briefs", "Innerwear"
+                ]:
+                    continue
+
+            raw_score = float(scores[0][rank].numpy())
+            embedding_score = (raw_score - score_min) / (score_max - score_min + 1e-8)
+
+            usage_match = 1 if meta["usage"] == expected_usage else 0
+            season_match = 1 if meta["season"] == expected_season else 0
+
+            final_score = (
+                0.25 * embedding_score +
+                0.55 * usage_match +
+                0.20 * season_match
+            )
 
             item = {
                 "id": item_id,
@@ -237,11 +268,17 @@ class RecommendationEngine:
                 "season": meta["season"],
                 "usage": meta["usage"],
                 "image": f"/static/images/{item_id}.jpg",
-                "score": float(scores[0][rank].numpy())
+                "score": round(final_score, 4),
+                "debug": {
+                    "embedding": round(embedding_score, 4),
+                    "usage_match": usage_match,
+                    "season_match": season_match
+                }
             }
 
             # TIER 1: match cả usage + season
-            if meta["usage"] == expected_usage and meta["season"] == expected_season:
+            season_ok = meta["season"] in [expected_season, "All"]
+            if meta["usage"] == expected_usage and season_ok:
                 primary.append(item)
 
             # TIER 2: match usage
@@ -252,8 +289,8 @@ class RecommendationEngine:
             else:
                 fallback.append(item)
 
-        results = primary + secondary + fallback
+        results = primary + secondary
+        results = sorted(results, key=lambda x: x["score"], reverse=True)
         return results[:k]
-
 
         return results
