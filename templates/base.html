@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>AI002 - Smart Outfit Advisor | {{ title }}</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <!-- CSS -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
+
+    {% block extra_head %}{% endblock %}
+</head>
+
+<body>
+    <!-- NAVBAR -->
+    <nav class="navbar">
+        <div class="nav-left">
+            <span class="logo">SmartFit</span>
+        </div>
+
+        <div class="nav-right">
+            <a href="{{ url_for('home') }}"
+            class="{% if active_page == 'home' %}active{% endif %}">
+            Home
+            </a>
+
+            <a href="{{ url_for('advisor') }}"
+            class="{% if active_page == 'advisor' %}active{% endif %}">
+            Advisor
+            </a>
+
+            <a href="{{ url_for('feedback') }}"
+            class="{% if active_page == 'feedback' %}active{% endif %}">
+            Feedback
+            </a>
+        </div>
+    </nav>
+
+    <!-- PAGE CONTENT -->
+    <main>
+        {% block content %}{% endblock %}
+    </main>
+
+    <!-- JS -->
+    <script src="{{ url_for('static', filename='js/script.js') }}"></script>
+    {% block extra_js %}{% endblock %}
+</body>
+</html>

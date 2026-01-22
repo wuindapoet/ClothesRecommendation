@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+{% block content %}
+
+<section class="home-hero">
+    <!-- Left background shape -->
+    <div class="home-bg-shape"></div>
+
+    <div class="home-container">
+        <!-- LEFT -->
+        <div class="home-left">
+            <h1>Welcome to <br><span>SmartFit</span></h1>
+            <p>
+                SmartFit is an intelligent outfit recommendation system
+                based on weather, occasion, and user preferences.
+            </p>
+
+            <a href="{{ url_for('advisor') }}" class="home-btn">
+                Try Now
+            </a>
+        </div>
+
+        <!-- RIGHT -->
+        <div class="home-right">
+            <img src="{{ url_for('static', filename='assets/hero.png') }}" alt="Hero image">
+        </div>
+    </div>
+</section>
+
+{% endblock %}
