@@ -49,46 +49,115 @@ def fetch_weather_data(lat, lng):
     return data
 
 def process_weather_data(data):
-    """data fetched from fetch_weather_data, pass as is, don't change
-    {'selectedOption1': 'option2', 'selectedOption2': '', 'location': {'lat': 30.90850901987831, 'lng': 121.47644044831395}}"""
+    daily = data.get("daily", {})
 
-def categorize_season(weather_data: dict) -> str:
-    # Use absolute value to handle Northern and Southern hemispheres equally
-    lat = abs(weather_data.get('latitude', 0))
-
-    max_temps = weather_data.get('temperature_2m_max', [])
-    min_temps = weather_data.get('temperature_2m_min', [])
+    max_temps = daily.get("temperature_2m_max", [])
+    min_temps = daily.get("temperature_2m_min", [])
+    rains = daily.get("precipitation_sum", [])
 
     if not max_temps or not min_temps:
-        return "Autumn" # Default to this season if no available data
+        return None
 
-    # Calculate the average temperature across the period
+    # --- Temperature level ---
+    avg_temp = mean([(mx + mn) / 2 for mx, mn in zip(max_temps, min_temps)])
+
+    if avg_temp < 15:
+        temp_level = "cold"
+    elif avg_temp < 25:
+        temp_level = "mild"
+    else:
+        temp_level = "hot"
+
+    # --- Rain level ---
+    avg_rain = mean(rains) if rains else 0
+
+    if avg_rain < 2:
+        rain_level = "no_rain"
+    elif avg_rain < 10:
+        rain_level = "light_rain"
+    else:
+        rain_level = "heavy_rain"
+
+    # --- Season ---
+    season = categorize_season({
+        "latitude": data.get("latitude"),
+        "temperature_2m_max": max_temps,
+        "temperature_2m_min": min_temps
+    })
+
+    return {
+        "season": season,
+        "temp_level": temp_level,
+        "rain_level": rain_level
+    }
+
+def categorize_season(weather_data: dict) -> str:
+    daily = weather_data.get("daily", {})
+    lat = abs(weather_data.get("latitude", 0))
+
+    max_temps = daily.get("temperature_2m_max", [])
+    min_temps = daily.get("temperature_2m_min", [])
+
+    if not max_temps or not min_temps:
+        return "Autumn"
+
     daily_avgs = [(mx + mn) / 2 for mx, mn in zip(max_temps, min_temps)]
-    avg_t = sum(daily_avgs) / len(daily_avgs)
+    avg_t = mean(daily_avgs)
 
-    # 1. Tropical Zones (0° - 23.5°)
-    # Small temp fluctuations. Thresholds are high.
+    # Tropical
     if lat < 23.5:
         if avg_t < 22: return "Winter"
         if avg_t < 25: return "Spring"
         if avg_t < 28: return "Autumn"
         return "Summer"
 
-    # 2. Subtropical & Temperate Zones (23.5° - 55°)
-    # Defined by clear seasonality.
+    # Temperate
     elif lat < 55:
         if avg_t < 8:  return "Winter"
         if avg_t < 16: return "Spring"
         if avg_t < 24: return "Autumn"
         return "Summer"
 
-    # 3. Polar / Subpolar Zones (55°+)
-    # Lower thresholds; anything above 10°C is effectively Summer.
+    # Polar
     else:
         if avg_t < 0:  return "Winter"
         if avg_t < 6:  return "Spring"
         if avg_t < 11: return "Autumn"
         return "Summer"
+
+def get_temp_level(weather_data: dict) -> str:
+    daily = weather_data.get("daily", {})
+    max_temps = daily.get("temperature_2m_max", [])
+    min_temps = daily.get("temperature_2m_min", [])
+
+    if not max_temps or not min_temps:
+        return "Mild"
+
+    avg_temp = mean([(mx + mn) / 2 for mx, mn in zip(max_temps, min_temps)])
+
+    if avg_temp < 15:
+        return "Cold"
+    elif avg_temp < 25:
+        return "Mild"
+    else:
+        return "Hot"
+
+
+def get_rain_level(weather_data: dict) -> str:
+    daily = weather_data.get("daily", {})
+    rains = daily.get("precipitation_sum", [])
+
+    if not rains:
+        return "NoRain"
+
+    avg_rain = mean(rains)
+
+    if avg_rain == 0:
+        return "NoRain"
+    elif avg_rain < 5:
+        return "LightRain"
+    else:
+        return "HeavyRain"
 
 def print_test(data):
     daily = data['daily']

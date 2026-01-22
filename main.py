@@ -1,3 +1,4 @@
+
 import os
 os.environ["TF_USE_LEGACY_KERAS"] = "1"
 
@@ -7,6 +8,7 @@ import csv
 from datetime import datetime
 import fetch_weather
 from model.build_model import RecommendationEngine
+from search_links import build_buy_links
 sys.stdout.reconfigure(line_buffering=True)
 
 app = Flask(__name__)
@@ -80,6 +82,9 @@ def recommend():
         # Get recommendations using the class
         recommendations = recommendation_engine.predict(user_inputs)
 
+        for it in recommendations:
+            it["buy_links"] = build_buy_links(it)
+
         return jsonify({
             'recommendations': recommendations,
             'query': user_inputs
@@ -105,6 +110,8 @@ def process_data(data: dict):
     k = data.get("k", 5)
 
     recommendations = recommendation_engine.predict(user_inputs, k=k)
+    for it in recommendations:
+        it["buy_links"] = build_buy_links(it)
     return recommendations
 
 if __name__ == '__main__':

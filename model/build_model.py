@@ -219,13 +219,18 @@ class RecommendationEngine:
         # Build response with metadata
         results = []
 
+        expected_usage = user_inputs["usage"]
+        expected_season = user_inputs["season"]
+
+        primary = []
+        secondary = []
+        fallback = []
+
         for rank, raw_id in enumerate(top_ids[0].numpy()):
             item_id = raw_id.decode("utf-8")
-
-            # Lookup metadata
             meta = self.df.loc[item_id]
 
-            results.append({
+            item = {
                 "id": item_id,
                 "type": meta["articleType"],
                 "gender": meta["gender"],
@@ -233,6 +238,22 @@ class RecommendationEngine:
                 "usage": meta["usage"],
                 "image": f"/static/images/{item_id}.jpg",
                 "score": float(scores[0][rank].numpy())
-            })
+            }
+
+            # TIER 1: match cả usage + season
+            if meta["usage"] == expected_usage and meta["season"] == expected_season:
+                primary.append(item)
+
+            # TIER 2: match usage
+            elif meta["usage"] == expected_usage:
+                secondary.append(item)
+
+            # TIER 3: fallback (similarity only)
+            else:
+                fallback.append(item)
+
+        results = primary + secondary + fallback
+        return results[:k]
+
 
         return results

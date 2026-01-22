@@ -179,6 +179,18 @@ function renderResult(list) {
         const score = Math.round(item.score * 100);
         const card = document.createElement('div');
         card.className = 'reco-card';
+
+        // Internet search links (Shopee/Google)
+        const links = item.buy_links || {};
+        let buyBtns = '';
+        if (links && (links.shopee || links.google || links.google_shopping || links.google_images)) {
+            buyBtns += '<div class="buy-links">';
+            if (links.shopee) buyBtns += `<a class="buy-btn" href="${links.shopee}" target="_blank" rel="noopener">Shopee</a>`;
+            if (links.google) buyBtns += `<a class="buy-btn" href="${links.google}" target="_blank" rel="noopener">Google</a>`;
+            if (links.google_shopping) buyBtns += `<a class="buy-btn" href="${links.google_shopping}" target="_blank" rel="noopener">Google Shopping</a>`;
+            if (links.google_images) buyBtns += `<a class="buy-btn" href="${links.google_images}" target="_blank" rel="noopener">Google Images</a>`;
+            buyBtns += '</div>';
+        }
         card.innerHTML = `
             <img src="${item.image}" onerror="this.src='/static/images/placeholder.jpg'">
             <div class="reco-content">
@@ -190,6 +202,7 @@ function renderResult(list) {
                 </div>
                 <div class="reason">✔ ${item.usage}</div>
                 <div class="reason">✔ ${item.season}</div>
+                ${buyBtns}
             </div>
         `;
         grid.appendChild(card);
