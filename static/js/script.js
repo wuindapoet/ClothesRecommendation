@@ -51,7 +51,10 @@ function updateSubmitButton() {
 
 /* Input Listeners */
 ['genderSelect', 'ageInput', 'occasionSelect', 'kInput'].forEach(id => {
-    document.getElementById(id).addEventListener('input', updateSubmitButton);
+    const el = document.getElementById(id);
+    if (el) {
+        el.addEventListener('input', updateSubmitButton);
+    }
 });
 
 /* Location Search */
@@ -59,31 +62,33 @@ let searchTimeout;
 const searchInput = document.getElementById('locationSearch');
 const searchResults = document.getElementById('searchResults');
 
-searchInput.addEventListener('input', () => {
-    const query = searchInput.value.trim();
-    clearTimeout(searchTimeout);
+if (searchInput && searchResults) {
+    searchInput.addEventListener('input', () => {
+        const query = searchInput.value.trim();
+        clearTimeout(searchTimeout);
 
-    if (query.length < 3) {
-        searchResults.style.display = 'none';
-        return;
-    }
-
-    searchTimeout = setTimeout(async () => {
-        try {
-            const res = await fetch(
-                `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&limit=5`,
-                { headers: { 'User-Agent': 'LocationPickerApp/1.0' } }
-            );
-
-            const data = await res.json();
-            renderSearchResults(data);
-        } catch {
-            searchResults.innerHTML =
-                '<div class="search-result-item">Search error</div>';
-            searchResults.style.display = 'block';
+        if (query.length < 3) {
+            searchResults.style.display = 'none';
+            return;
         }
-    }, 500);
-});
+
+        searchTimeout = setTimeout(async () => {
+            try {
+                const res = await fetch(
+                    `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&limit=5`,
+                    { headers: { 'User-Agent': 'LocationPickerApp/1.0' } }
+                );
+
+                const data = await res.json();
+                renderSearchResults(data);
+            } catch {
+                searchResults.innerHTML =
+                    '<div class="search-result-item">Search error</div>';
+                searchResults.style.display = 'block';
+            }
+        }, 500);
+    });
+}
 
 function renderSearchResults(results) {
     searchResults.innerHTML = '';
@@ -121,51 +126,52 @@ function renderSearchResults(results) {
 }
 
 document.addEventListener('click', e => {
+    if (!searchInput || !searchResults) return;
     if (!searchInput.contains(e.target) && !searchResults.contains(e.target)) {
         searchResults.style.display = 'none';
     }
 });
 
 /* Submit */
-document.getElementById('submitBtn').addEventListener('click', async () => {
-    const data = {
-        gender: document.getElementById('genderSelect').value,
-        age: parseInt(document.getElementById('ageInput').value),
-        occasion: document.getElementById('occasionSelect').value,
-        k: parseInt(document.getElementById('kInput').value),
-        location: selectedLocation
-    };
+const submitBtn = document.getElementById('submitBtn');
+if (submitBtn) {
+    submitBtn.addEventListener('click', async () => {
+        const data = {
+            gender: document.getElementById('genderSelect').value,
+            age: parseInt(document.getElementById('ageInput').value),
+            occasion: document.getElementById('occasionSelect').value,
+            k: parseInt(document.getElementById('kInput').value),
+            location: selectedLocation
+        };
 
-    const statusMsg = document.getElementById('statusMsg');
-    const submitBtn = document.getElementById('submitBtn');
+        const statusMsg = document.getElementById('statusMsg');
 
-    try {
-        submitBtn.disabled = true;
-        statusMsg.style.display = 'none';
+        try {
+            submitBtn.disabled = true;
+            statusMsg.style.display = 'none';
 
-        const res = await fetch('/process-location', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(data)
-        });
+            const res = await fetch('/process-location', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(data)
+            });
 
-        const result = await res.json();
+            const result = await res.json();
+            if (!res.ok) throw new Error(result.error || 'Submission failed');
 
-        if (!res.ok) throw new Error(result.error || 'Submission failed');
+            statusMsg.className = 'status success';
+            statusMsg.textContent = result.message || 'Success!';
+            statusMsg.style.display = 'block';
 
-        statusMsg.className = 'status success';
-        statusMsg.textContent = result.message || 'Success!';
-        statusMsg.style.display = 'block';
-
-        renderResult(result.data?.result || []);
-
-    } catch (err) {
-        statusMsg.className = 'status error';
-        statusMsg.textContent = err.message;
-        statusMsg.style.display = 'block';
-        submitBtn.disabled = false;
-    }
-});
+            renderResult(result.data?.result || []);
+        } catch (err) {
+            statusMsg.className = 'status error';
+            statusMsg.textContent = err.message;
+            statusMsg.style.display = 'block';
+            submitBtn.disabled = false;
+        }
+    });
+}
 
 /* Render Result */
 function renderResult(list) {
@@ -219,56 +225,58 @@ window.addEventListener('DOMContentLoaded', () => {
     }
 });
 
-/* Side Menu Toggle */
-const hamburger = document.getElementById("hamburger");
-const sideMenu = document.getElementById("sideMenu");
-const overlay = document.getElementById("overlay");
+/* Feedback Handling */
+document.addEventListener("DOMContentLoaded", () => {
+    const feedbackBtn = document.getElementById("feedbackBtn");
+    console.log("feedbackBtn =", feedbackBtn);
 
-hamburger.onclick = () => {
-    sideMenu.style.right = "0";
-    overlay.style.display = "block";
-};
+    if (!feedbackBtn) return;
 
-overlay.onclick = () => {
-    sideMenu.style.right = "-240px";
-    overlay.style.display = "none";
-};
+    feedbackBtn.addEventListener("click", async () => {
+        console.log("FEEDBACK BUTTON CLICKED");
+        const rating = document.querySelector('input[name="rating"]:checked')?.value;
+        const feedback = document.getElementById("feedbackText").value.trim();
+        const status = document.getElementById("feedbackStatus");
 
-/* Feedback Star Rating */
-let selectedRating = 0;
-const stars = document.querySelectorAll("#ratingStars span");
+        status.style.display = "none";
 
-stars.forEach(star => {
-    star.addEventListener("click", () => {
-        selectedRating = star.dataset.star;
-        stars.forEach(s => s.classList.remove("active"));
-        for (let i = 0; i < selectedRating; i++) {
-            stars[i].classList.add("active");
+        if (!rating || !feedback) {
+            status.textContent = "Please select a rating and write feedback.";
+            status.style.display = "block";
+            return;
+        }
+
+        try {
+            const res = await fetch("/feedback", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ rating, feedback })
+            });
+
+            const data = await res.json();
+
+            if (!res.ok) {
+                throw new Error(data.error || "Server error");
+            }
+
+            status.textContent = "Thank you for your feedback ❤️";
+            status.style.display = "block";
+
+            document.querySelectorAll('input[name="rating"]').forEach(r => r.checked = false);
+            document.getElementById("feedbackText").value = "";
+
+            setTimeout(() => {
+                window.location.reload();
+            }, 100000);
+
+        } catch (err) {
+            status.textContent = err.message;
+            status.style.display = "block";
         }
     });
 });
 
-document.getElementById("feedbackBtn").onclick = async () => {
-    const feedback = document.getElementById("feedbackText").value;
-    const status = document.getElementById("feedbackStatus");
-
-    if (!selectedRating || !feedback.trim()) {
-        status.className = "status error";
-        status.textContent = "Please rate and write feedback.";
-        status.style.display = "block";
-        return;
-    }
-
-    const res = await fetch("/feedback", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-            rating: selectedRating,
-            feedback: feedback
-        })
-    });
-
-    status.className = "status success";
-    status.textContent = "Thank you for your feedback!";
-    status.style.display = "block";
-};
+function getSelectedRating() {
+    const checked = document.querySelector('input[name="rating"]:checked');
+    return checked ? parseInt(checked.value) : 0;
+}

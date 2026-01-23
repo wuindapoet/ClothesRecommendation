@@ -23,22 +23,39 @@ def home():
 @app.route("/advisor")
 def advisor():
     return render_template("advisor.html", title="Advisor", active_page="advisor")
+
 @app.route("/feedback", methods=["GET", "POST"])
 def feedback():
-    if request.method == "POST":
-        data = request.get_json()
+    if request.method == "GET":
+        return render_template("feedback.html", title="Feedback", active_page="feedback")
 
-        with open("feedback.csv", "a", newline="", encoding="utf-8") as f:
-            writer = csv.writer(f)
-            writer.writerow([
-                datetime.now().isoformat(),
-                data["rating"],
-                data["feedback"]
-            ])
+    # POST
+    data = request.get_json()
 
-        return jsonify({"message": "Feedback saved"}), 200
+    if not data:
+        return jsonify({"error": "No data received"}), 400
 
-    return render_template("feedback.html", title="Feedback", active_page="feedback")
+    rating = data.get("rating")
+    feedback_text = data.get("feedback")
+
+    if not rating or not feedback_text:
+        return jsonify({"error": "Missing rating or feedback"}), 400
+
+    file_path = "feedback.csv"
+    file_exists = os.path.isfile(file_path)
+
+    with open(file_path, mode="a", newline="", encoding="utf-8") as f:
+        writer = csv.writer(f)
+        if not file_exists:
+            writer.writerow(["timestamp", "rating", "feedback"])
+
+        writer.writerow([
+            datetime.now().isoformat(timespec="seconds"),
+            rating,
+            feedback_text
+        ])
+
+    return jsonify({"message": "Feedback saved"})
 
 @app.route('/process-location', methods=['POST'])
 def process_location():

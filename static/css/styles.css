@@ -416,20 +416,26 @@ input[type="text"]:hover {
 }
 
 /* ===== RATING ===== */
-.rating span {
-    font-size: 2.2em;
-    cursor: pointer;
-    color: #cbd5e0;
-    transition: all 0.2s ease;
+.rating {
+  display: flex;
+  flex-direction: row-reverse;
+  justify-content: center;
 }
 
-.rating span:hover {
-    color: #fbbf24;
-    transform: scale(1.1);
+.rating input {
+  display: none;
 }
 
-.rating span.active {
-    color: #fbbf24;
+.rating label {
+  font-size: 2rem;
+  color: #ccc;
+  cursor: pointer;
+}
+
+.rating label:hover,
+.rating label:hover ~ label,
+.rating input:checked ~ label {
+  color: gold;
 }
 
 /* ===== SECTION SPACING ===== */
