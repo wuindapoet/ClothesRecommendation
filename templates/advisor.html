@@ -10,23 +10,24 @@
         <div class="content">
             <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 25px;">
                 <div class="form-group" style="margin-bottom: 0;">
-                    <label for="genderSelect">Gender:</label>
+                    <label for="genderSelect">Target Gender:</label>
                     <select id="genderSelect">
                         <option value="">-- Select Gender --</option>
                         <option value="man">Men</option>
                         <option value="woman">Women</option>
+                        <option value="unisex">Unisex</option>
                     </select>
                 </div>
 
                 <div class="form-group" style="margin-bottom: 0;">
-                    <label for="ageInput">Age:</label>
-                    <input type="number" id="ageInput" min="10" max="99" placeholder="Enter age (10-99)"
+                    <label for="ageInput">Target Age:</label>
+                    <input type="number" id="ageInput" min="15" max="50" placeholder="Enter age (15-50)"
                         style="width: 100%; padding: 12px 15px; border: 2px solid #e0e0e0; border-radius: 8px; font-size: 1em; transition: all 0.3s;">
                 </div>
             </div>
             
             <div class="form-group">
-                <label for="kInput">Number of clothes (k):</label>
+                <label for="kInput">Number of items (k):</label>
                 <input type="number"
                     id="kInput"
                     min="1"
@@ -51,11 +52,20 @@
                     <option value="travel">Travel</option>
                 </select>
             </div>
+            
+            <div class="form-group">
+                <label for="dateInput">
+                    Target Date
+                    <span style="font-size:0.85em;color:#718096;"> (within 15 days from today)</span>
+                </label>
+
+                <input type="date" id="dateInput" required>
+                <small style="color:#718096;"> Please select a date between today and the next 15 days.</small>
+            </div>
 
             <div class="form-group">
                 <label>Choose Location on Map:</label>
-                <p style="color: #666; font-size: 0.9em; margin-bottom: 10px;">Search for a location or click anywhere on the map to select</p>
-
+                <p style="color: #666; font-size: 0.9em; margin-bottom: 10px;">Search for a location or click anywhere on the map to select. Ocean locations are not supported!.</p>
                 <!-- Search bar -->
                 <div style="position: relative; margin-bottom: 10px;">
                     <input type="text" id="locationSearch" placeholder="Search for a location (e.g., 'Paris', 'Statue of Liberty')"

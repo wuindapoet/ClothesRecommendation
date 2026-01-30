@@ -8,10 +8,28 @@ import numpy as np
 import pandas as pd
 from pathlib import Path
 
+CLOTHING_TYPES = {
+    "Shirts", "Tshirts", "Jeans", "Trousers", "Shorts",
+    "Dresses", "Skirts", "Tops",
+    "Kurtas", "Kurtis", "Tunics",
+    "Sweaters", "Sweatshirts", "Jackets", "Rain Jacket",
+    "Waistcoat", "Shrug",
+    "Track Pants", "Tracksuits",
+    "Night suits", "Nightdress",
+    "Salwar", "Patiala", "Lehenga Choli", "Sarees",
+    "Jeggings", "Leggings",
+    "Rompers", "Swimwear",
+    "Suits"
+}
+
 DATA_PATH = Path(__file__).parent / "styles.csv"
 Columns = ['id', 'gender', 'articleType', 'season', 'usage']
+
 df = pd.read_csv(DATA_PATH, usecols=Columns)
 df = df.dropna()
+
+df = df[df["articleType"].isin(CLOTHING_TYPES)]
+df = df.reset_index(drop=True)
 
 df['id'] = df['id'].astype(str)
 
@@ -30,6 +48,15 @@ U_usage = np.unique(data_dict['usage'])
 U_gender = np.unique(data_dict['gender'])
 U_type = np.append(np.unique(data_dict['articleType']), "Unknown")
 U_id = np.unique(data_dict['id'])
+
+candidate_dataset = dataset.map(lambda x: {
+    "id": x["id"],
+    "gender": x["gender"],
+    "articleType": x["articleType"],
+    "season": x["season"],
+    "usage": x["usage"],
+})
+
 
 Dimension = 32
 
@@ -68,18 +95,20 @@ class query(tf.keras.Model):
 
     def call(self, inputs):
         x = tf.concat([
-            self.gender_embed(inputs['gender']) * 1.0,
-            self.usage_embed(inputs['usage']) * 2.5,
+            self.gender_embed(inputs['gender']),
+            self.usage_embed(inputs['usage']),
             self.type_embed(inputs['articleType']),
-            self.season_embed(inputs['season']) * 1.5
+            self.season_embed(inputs['season'])
         ], axis=1)
 
-        return self.deep_query(x)
+        return tf.math.l2_normalize(self.deep_query(x), axis=1)
 
 class candidate(tf.keras.Model):
     def __init__(self):
         super().__init__()
 
+        self.id_proj = tf.keras.layers.Dense(32)
+        
         # DON'T name this - becomes "sequential"
         self.id_embed = tf.keras.Sequential([
             tf.keras.layers.StringLookup(vocabulary=U_id, mask_token=None),
@@ -115,22 +144,36 @@ class candidate(tf.keras.Model):
         ])
 
     def call(self, inputs):
-        x = tf.concat([
-            self.gender_embed(inputs['gender']) * 2.0,
+        content = tf.concat([
+            self.gender_embed(inputs['gender']),
             self.usage_embed(inputs['usage']),
             self.type_embed(inputs['articleType']),
             self.season_embed(inputs['season']),
-            self.id_embed(inputs['id'])
         ], axis=1)
-        return self.deep_cand(x)
 
+        content_vec = self.deep_cand(content)      # (B, 32)
+        id_vec = self.id_embed(inputs["id"])        # (B, 128)
+        id_vec = self.id_proj(id_vec)               # (B, 32)
 
+        return tf.math.l2_normalize(content_vec + id_vec, axis=1)
+    
 class main_model(tfrs.Model):
-    def __init__(self):
+    def __init__(self, with_metrics=False):
         super().__init__()
         self.query_model = query()
         self.candidate_model = candidate()
-        self.task = tfrs.tasks.Retrieval()
+
+        if with_metrics:
+            self.task = tfrs.tasks.Retrieval(
+                metrics=tfrs.metrics.FactorizedTopK(
+                    candidates=candidate_dataset
+                        .batch(128)
+                        .map(self.candidate_model)
+                        .cache()
+                )
+            )
+        else:
+            self.task = tfrs.tasks.Retrieval()
 
     def compute_query_embeddings(self, features):
         return self.query_model(features)
@@ -158,14 +201,22 @@ class RecommendationEngine:
     def load_model_and_index(self):
         """Load model and build index once at startup"""
         print("Loading model...")
-        self.model = main_model()
-        self.model.compile(optimizer=tf.keras.optimizers.Adam())
+        self.model = main_model(with_metrics=False)
+
+        self.model.compile(
+            optimizer=tf.keras.optimizers.Adam()
+        )
 
         WEIGHT_PATH = Path(__file__).parent / "model.weights.h5"
         self.model.load_weights(WEIGHT_PATH)
+
         print("Model loaded successfully!")
 
         self.df = df.set_index("id")
+
+        # safety filter (should be redundant but keeps system robust)
+        self.df = self.df[self.df["articleType"].isin(CLOTHING_TYPES)]
+
         print(f"Metadata loaded: {len(self.df)} items")
 
         # Build the index once
@@ -179,23 +230,19 @@ class RecommendationEngine:
 
         # Pre-calculate all embeddings
         print("Calculating candidate embeddings...")
-        mapped_ds = candidate_dataset.batch(128).map(
-            lambda x: (x['id'], self.model.compute_candidate_embeddings(x))
+        self.index = tfrs.layers.factorized_top_k.BruteForce(
+            self.model.compute_query_embeddings
         )
 
-        identifiers = []
-        vectors = []
+        self.index.index_from_dataset(
+            candidate_dataset.batch(128).map(
+                lambda x: (
+                    x["id"],
+                    self.model.compute_candidate_embeddings(x)
+                )
+            )
+        )
 
-        for batch_ids, batch_vectors in mapped_ds:
-            identifiers.append(batch_ids)
-            vectors.append(batch_vectors)
-
-        self.all_identifiers = tf.concat(identifiers, axis=0)
-        all_vectors = tf.concat(vectors, axis=0)
-
-        # Build the index
-        print(f"Indexing {len(all_vectors)} items...")
-        self.index.index(all_vectors, identifiers=None)
         print("Index built successfully!")
 
     def predict(self, user_inputs, k=5):
@@ -204,20 +251,19 @@ class RecommendationEngine:
         """
         if self.model is None or self.index is None:
             raise RuntimeError("Model not loaded. Call load_model_and_index() first.")
-
+        
+        preferred_type = "Shirts" if user_inputs["usage"] == "Formal" else "Tshirts"
         # Build query
         user_query = {
             "gender": tf.constant([user_inputs['gender']]),
-            "articleType": tf.constant(["Unknown"]),
+            "articleType": tf.constant([preferred_type]),
             "season": tf.constant([user_inputs['season']]),
             "usage": tf.constant([user_inputs['usage']])
         }
 
         # Retrieve top-K
         RETRIEVE_K = max(k * 10, 50)
-        scores, top_indices = self.index(user_query, k=RETRIEVE_K)
-
-        top_ids = tf.gather(self.all_identifiers, top_indices)
+        scores, top_ids = self.index(user_query, k=RETRIEVE_K)
 
         # Build response with metadata
         results = []
@@ -235,7 +281,7 @@ class RecommendationEngine:
         for rank, raw_id in enumerate(top_ids[0].numpy()):
             item_id = raw_id.decode("utf-8")
             meta = self.df.loc[item_id]
-            
+
             if expected_usage == "Formal":
                 if meta["articleType"] in [
                     "Bra", "Briefs", "Innerwear", "Lingerie",
@@ -256,8 +302,8 @@ class RecommendationEngine:
             season_match = 1 if meta["season"] == expected_season else 0
 
             final_score = (
-                0.25 * embedding_score +
-                0.55 * usage_match +
+                0.20 * embedding_score +
+                0.50 * usage_match +
                 0.20 * season_match
             )
 
@@ -272,13 +318,13 @@ class RecommendationEngine:
                 "debug": {
                     "embedding": round(embedding_score, 4),
                     "usage_match": usage_match,
-                    "season_match": season_match
+                    "season_match": season_match,
                 }
             }
 
-            # TIER 1: match cả usage + season
+            # TIER 1: usage + season
             season_ok = meta["season"] in [expected_season, "All"]
-            if meta["usage"] == expected_usage and season_ok:
+            if (meta["usage"] == expected_usage and season_ok):
                 primary.append(item)
 
             # TIER 2: match usage
@@ -290,7 +336,9 @@ class RecommendationEngine:
                 fallback.append(item)
 
         results = primary + secondary
-        results = sorted(results, key=lambda x: x["score"], reverse=True)
-        return results[:k]
+        if len(results) < k:
+            results += fallback
 
-        return results
+        results = sorted(results, key=lambda x: x["score"], reverse=True)
+
+        return results[:k]

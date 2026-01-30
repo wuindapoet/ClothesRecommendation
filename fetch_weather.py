@@ -158,6 +158,17 @@ def get_rain_level(weather_data: dict) -> str:
         return "LightRain"
     else:
         return "HeavyRain"
+    
+def is_on_land(lat, lng) -> bool:
+    url = "https://nominatim.openstreetmap.org/reverse"
+    params = {
+        "lat": lat,
+        "lon": lng,
+        "format": "json"
+    }
+    r = requests.get(url, params=params, headers={"User-Agent": "SmartFit"})
+    data = r.json()
+    return "country" in data.get("address", {})
 
 def print_test(data):
     daily = data['daily']

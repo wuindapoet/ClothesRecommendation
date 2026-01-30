@@ -43,14 +43,35 @@ function updateSubmitButton() {
 
     const submitBtn = document.getElementById('submitBtn');
 
-    const validAge = age >= 10 && age <= 99;
+    const validAge = age >= 15 && age <= 50;
     const validK = k >= 1 && k <= 10;
 
-    submitBtn.disabled = !(gender && occasion && selectedLocation && validAge && validK);
+    const ageError = document.getElementById('ageError');
+    if (ageError) {
+        if (age && !validAge) {
+            ageError.textContent = "Age must be between 15 and 50";
+        } else {
+            ageError.textContent = "";
+        }
+    }
+
+    const dateValue = document.getElementById("dateInput").value;
+    let validDate = false;
+
+    if (dateValue) {
+        const selected = new Date(dateValue);
+        const today = new Date();
+        const max = new Date();
+        max.setDate(today.getDate() + 15);
+
+        validDate = selected >= today && selected <= max;
+    }
+
+    submitBtn.disabled = !(gender && occasion && selectedLocation && validAge && validK && validDate);
 }
 
 /* Input Listeners */
-['genderSelect', 'ageInput', 'occasionSelect', 'kInput'].forEach(id => {
+['genderSelect', 'ageInput', 'occasionSelect', 'kInput', 'dateInput'].forEach(id => {
     const el = document.getElementById(id);
     if (el) {
         el.addEventListener('input', updateSubmitButton);
@@ -141,6 +162,7 @@ if (submitBtn) {
             age: parseInt(document.getElementById('ageInput').value),
             occasion: document.getElementById('occasionSelect').value,
             k: parseInt(document.getElementById('kInput').value),
+            date: document.getElementById('dateInput').value,
             location: selectedLocation
         };
 
@@ -259,7 +281,7 @@ document.addEventListener("DOMContentLoaded", () => {
                 throw new Error(data.error || "Server error");
             }
 
-            status.textContent = "Thank you for your feedback ❤️";
+            status.textContent = "Thank you for your feedback 💜";
             status.style.display = "block";
 
             document.querySelectorAll('input[name="rating"]').forEach(r => r.checked = false);
@@ -267,7 +289,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
             setTimeout(() => {
                 window.location.reload();
-            }, 100000);
+            }, 10000);
 
         } catch (err) {
             status.textContent = err.message;
@@ -275,6 +297,20 @@ document.addEventListener("DOMContentLoaded", () => {
         }
     });
 });
+
+/* Date Input Constraints */
+document.addEventListener("DOMContentLoaded", () => {
+    const dateInput = document.getElementById("dateInput");
+    if (!dateInput) return;
+
+    const today = new Date();
+    const maxDate = new Date();
+    maxDate.setDate(today.getDate() + 15);
+
+    dateInput.min = today.toISOString().split("T")[0];
+    dateInput.max = maxDate.toISOString().split("T")[0];
+});
+
 
 function getSelectedRating() {
     const checked = document.querySelector('input[name="rating"]:checked');

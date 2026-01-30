@@ -604,6 +604,38 @@ textarea:hover {
     }
 }
 
+/* DATE INPUT (Target Date) */
+input[type="date"] {
+    width: 100%;
+    padding: 12px 15px;
+    border: 2px solid #e2e8f0;
+    border-radius: 8px;
+    font-size: 1em;
+    font-family: inherit;
+    color: #2d3748;
+    background: white;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+/* hover */
+input[type="date"]:hover {
+    border-color: #5e72e4;
+}
+
+/* focus */
+input[type="date"]:focus {
+    outline: none;
+    border-color: #5e72e4;
+    box-shadow: 0 0 0 3px rgba(94, 114, 228, 0._toggle);
+}
+
+/* calendar icon (Chrome / Edge) */
+input[type="date"]::-webkit-calendar-picker-indicator {
+    cursor: pointer;
+    filter: invert(35%) sepia(75%) saturate(600%) hue-rotate(215deg);
+}
+
 /* animations 4 home page */
 @keyframes fadeUp {
     from {

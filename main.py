@@ -1,4 +1,3 @@
-
 import os
 os.environ["TF_USE_LEGACY_KERAS"] = "1"
 
@@ -59,26 +58,19 @@ def feedback():
 
 @app.route('/process-location', methods=['POST'])
 def process_location():
-    """Handle location data from frontend"""
-    option_num = 2
     try:
-        # Get JSON data from request
         data = request.get_json()
-        print(data)
-
-        # Example: Do something with the data
         result = process_data(data)
 
-        # Return success response
         return jsonify({
             'message': 'Location processed successfully!',
-            'data': {
-                'result': result
-            }
+            'data': {'result': result}
         }), 200
 
+    except ValueError as e:
+        return jsonify({'error': str(e)}), 400
+
     except Exception as e:
-        print(f"Error: {str(e)}")
         return jsonify({'error': f'Server error: {str(e)}'}), 500
 
 
@@ -112,9 +104,43 @@ def recommend():
         return jsonify({'error': f'Recommendation error: {str(e)}'}), 500
 
 
+from datetime import datetime, date, timedelta
+
 def process_data(data: dict):
-    location = data['location']
-    weather_data = fetch_weather.fetch_weather_data(location['lat'], location['lng'])
+    # AGE
+    age = data.get("age")
+    if age is None or not (15 <= age <= 50):
+        raise ValueError("Age must be between 15 and 50")
+
+    # k
+    k = data.get("k")
+    if k is None or not (1 <= k <= 10):
+        raise ValueError("Number of items (k) must be between 1 and 10")
+
+    # DATE 
+    date_str = data.get("date")
+    if not date_str:
+        raise ValueError("Target date is required")
+
+    target_date = datetime.strptime(date_str, "%Y-%m-%d").date()
+    today = date.today()
+
+    if not (today <= target_date <= today + timedelta(days=15)):
+        raise ValueError("Target date must be within 15 days from today")
+
+    # LOCATION
+    location = data.get("location")
+    if not location:
+        raise ValueError("Location is required")
+
+    lat = location.get("lat")
+    lng = location.get("lng")
+
+    if not fetch_weather.is_on_land(lat, lng):
+        raise ValueError("Selected location must be on land")
+
+    # WEATHER & RECOMMEND
+    weather_data = fetch_weather.fetch_weather_data(lat, lng)
     season = fetch_weather.categorize_season(weather_data)
 
     user_inputs = {
@@ -124,11 +150,10 @@ def process_data(data: dict):
         'usage': data['occasion'].capitalize()
     }
 
-    k = data.get("k", 5)
-
     recommendations = recommendation_engine.predict(user_inputs, k=k)
     for it in recommendations:
         it["buy_links"] = build_buy_links(it)
+
     return recommendations
 
 if __name__ == '__main__':
